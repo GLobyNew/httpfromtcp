@@ -14,7 +14,8 @@ func main() {
 	defer f.Close()
 
 	ch := getLinesChannel(f)
-
-	fmt.Printf("read: %s\n", <-ch)
+	for s := range ch {
+		fmt.Printf("read: %s\n", s)
+	}
 
 }
