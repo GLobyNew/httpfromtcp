@@ -3,10 +3,11 @@ package main
 import (
 	"io"
 	"log"
+	"net"
 	"strings"
 )
 
-func getLinesChannel(f io.ReadCloser) <-chan string {
+func getLinesChannel(f net.Conn) <-chan string {
 
 	ch := make(chan string)
 
