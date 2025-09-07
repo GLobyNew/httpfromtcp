@@ -1,7 +1,20 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+	"os"
+)
 
 func main() {
-	fmt.Println("I hope I get the job!")
+	f, err := os.Open("messages.txt")
+	if err != nil {
+		log.Fatalf("Error openning file: %v", err)
+	}
+	defer f.Close()
+
+	ch := getLinesChannel(f)
+
+	fmt.Printf("read: %s\n", <-ch)
+
 }
