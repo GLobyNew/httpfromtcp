@@ -7,12 +7,13 @@ import (
 )
 
 func main() {
-
 	listener, err := net.Listen("tcp", ":42069")
 	if err != nil {
 		log.Fatalf("Error creating listener: %v", err)
 	}
 	defer listener.Close()
+
+	fmt.Println("Server has started!")
 
 	for {
 		conn, err := listener.Accept()
@@ -27,5 +28,4 @@ func main() {
 		}
 
 	}
-
 }
