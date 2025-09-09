@@ -24,7 +24,7 @@ func main() {
 
 		ch := getLinesChannel(conn)
 		for s := range ch {
-			fmt.Printf("%s\n", s)
+			fmt.Println(s)
 		}
 
 	}
