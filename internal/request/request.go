@@ -1,13 +1,35 @@
 package request
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
 )
 
 type Request struct {
-	RequestLine RequestLine
+	RequestLine  RequestLine
+	RequestState RequestState
+}
+
+func (r *Request) parse(data []byte) (int, error) {
+	switch r.RequestState {
+	case Initialized:
+		rl, cb, err := parseRequestLine(data)
+		if err != nil {
+			return 0, err
+		}
+		if cb == 0 {
+			return 0, nil
+		}
+		r.RequestLine = *rl
+		r.RequestState = Done
+		return cb, nil
+	case Done:
+		return 0, fmt.Errorf("error: trying to read data in a done state")
+	default:
+		return 0, fmt.Errorf("error: unknown state")
+	}
 }
 
 type RequestLine struct {
@@ -16,9 +38,15 @@ type RequestLine struct {
 	Method        string
 }
 
+type RequestState int
+
 const (
-	SUPPORTED_HTTP_VERSION = "1.1"
+	Initialized RequestState = iota
+	Done
 )
+
+const SUPPORTED_HTTP_VERSION = "1.1"
+const bufferSize = 8
 
 func verifyRequestLine(requestLine *RequestLine) error {
 	if requestLine.Method != strings.ToUpper(requestLine.Method) {
@@ -32,49 +60,75 @@ func verifyRequestLine(requestLine *RequestLine) error {
 
 }
 
-func parseRequestLine(request string) (*RequestLine, error) {
-	parts := strings.Split(request, "\r\n")
-	requestLineStr := parts[0]
-	requestLineParts := strings.Split(requestLineStr, " ")
+func parseRequestLine(data []byte) (*RequestLine, int, error) {
+	idx := bytes.Index(data, []byte("\r\n"))
+	if idx == -1 {
+		return nil, 0, nil
+	}
+	requestLineText := string(data[:idx])
+	requestLine, err := parseRequestLineString(requestLineText)
+	if err != nil {
+		return nil, 0, err
+	}
+	return requestLine, idx + 2, nil
+}
+
+func parseRequestLineString(str string) (rl *RequestLine, err error) {
+	requestLineParts := strings.Split(str, " ")
 
 	if len(requestLineParts) != 3 {
-		return &RequestLine{}, fmt.Errorf("request has %v parts, instead of 3", len(requestLineParts))
+		return rl, fmt.Errorf("request has %v parts, instead of 3", len(requestLineParts))
 	}
 
 	httpVersionFull := strings.Split(requestLineParts[2], "/")
 	if len(httpVersionFull) != 2 {
-		return &RequestLine{}, fmt.Errorf("HTTP version has %v parts, instead of 2", len(httpVersionFull))
+		return rl, fmt.Errorf("HTTP version has %v parts, instead of 2", len(httpVersionFull))
 	}
 	httpVersion := httpVersionFull[1]
 
-	requestLine := RequestLine{
+	rl = &RequestLine{
 		Method:        requestLineParts[0],
 		RequestTarget: requestLineParts[1],
 		HttpVersion:   httpVersion,
 	}
 
-	if err := verifyRequestLine(&requestLine); err != nil {
-		return &RequestLine{}, err
+	if err := verifyRequestLine(rl); err != nil {
+		return rl, err
 	}
-	return &requestLine, nil
+	return rl, nil
 
 }
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	r, err := io.ReadAll(reader)
-	if err != nil {
-		return &Request{}, err
+	r := Request{
+		RequestState: Initialized,
 	}
-	strReq := string(r)
-
-	reqLine, err := parseRequestLine(strReq)
-	if err != nil {
-		return &Request{}, err
+	buf := make([]byte, bufferSize, bufferSize)
+	readToIndex := 0
+	for r.RequestState != Done {
+		if readToIndex == cap(buf) {
+			newBuf := make([]byte, cap(buf)*2, cap(buf)*2)
+			copy(newBuf, buf)
+			buf = newBuf
+		}
+		n, err := reader.Read(buf[readToIndex:cap(buf)])
+		if err != nil {
+			if err == io.EOF {
+				r.RequestState = Done
+				break
+			}
+			return &Request{}, err
+		}
+		readToIndex += n
+		pb, err := r.parse(buf[:readToIndex])
+		if err != nil {
+			return &Request{}, err
+		}
+		if pb > 0 {
+			copy(buf, buf[pb:readToIndex])
+			readToIndex -= pb
+		}
 	}
-
-	request := Request{
-		RequestLine: *reqLine,
-	}
-	return &request, nil
+	return &r, nil
 
 }
