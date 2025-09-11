@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+
+	"github.com/GLobyNew/httpfromtcp/internal/request"
 )
 
 func main() {
@@ -22,10 +24,14 @@ func main() {
 		}
 		fmt.Println("Connection has been established!")
 
-		ch := getLinesChannel(conn)
-		for s := range ch {
-			fmt.Println(s)
+		r, err := request.RequestFromReader(conn)
+		if err != nil {
+			log.Fatalf("error getting request from reader: %v", err)
 		}
+		fmt.Println("Request line:")
+		fmt.Printf("- Method: %v\n", r.RequestLine.Method)
+		fmt.Printf("- Target: %v\n", r.RequestLine.RequestTarget)
+		fmt.Printf("- Version: %v\n", r.RequestLine.HttpVersion)
 
 	}
 }

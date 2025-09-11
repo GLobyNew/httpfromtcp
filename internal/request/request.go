@@ -103,11 +103,11 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	r := Request{
 		RequestState: Initialized,
 	}
-	buf := make([]byte, bufferSize, bufferSize)
+	buf := make([]byte, bufferSize)
 	readToIndex := 0
 	for r.RequestState != Done {
 		if readToIndex == cap(buf) {
-			newBuf := make([]byte, cap(buf)*2, cap(buf)*2)
+			newBuf := make([]byte, cap(buf)*2)
 			copy(newBuf, buf)
 			buf = newBuf
 		}
